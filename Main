@@ -34,18 +34,6 @@ local Button = Aimbot:CreateButton({
 	end,
 })
 local Button = Aimbot:CreateButton({
-	Name = "Silent Aim - Semi Legit",
-	Callback = function()
-	loadstring(game:HttpGet('https://raw.githubusercontent.com/Riley0001/PFSilent/main/Main'))()
-	end,
-})
-local Button = Aimbot:CreateButton({
-	Name = "Silent Aim - Rage",
-	Callback = function()
-	loadstring(game:HttpGet('https://raw.githubusercontent.com/Riley0001/PFSilentRage/main/Main'))()
-	end,
-})
-local Button = Aimbot:CreateButton({
 	Name = "Aimbot - Very Legit (Probably The Best Option To Go For!)",
 	Callback = function()
 	loadstring(game:HttpGet('https://raw.githubusercontent.com/Riley0001/PFLEGITAIM/main/Main'))()
