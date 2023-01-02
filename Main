@@ -9,13 +9,355 @@ local Aimbot = Window:MakeTab({
 Aimbot:AddButton({
 	Name = "Legit/Rage Silent Aim",
 	Callback = function()
-      		loadstring(game:HttpGet('https://raw.githubusercontent.com/Riley0001/PFSilentLegit/main/Main'))()
+      		getgenv().fov = 25 -- Any angle between 0-180 degrees
+getgenv().visibleCheck = true -- Checks if the target is behind a wall
+getgenv().randomization = 0 -- A factor for the maximum randomization offset
+getgenv().headChance = 0.25 -- A factor for the chance to hit a headshot with random hitpart
+getgenv().targetedPart = "Random" -- "Head", "Torso" or "Random"
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Spoorloos/scripts/main/silent_aim_v2.lua"))()
   	end    
 })
 Aimbot:AddButton({
 	Name = "Very Legit Aimbot (Best Option To Use)",
 	Callback = function()
-      		loadstring(game:HttpGet('https://raw.githubusercontent.com/Riley0001/PFLEGITAIM/main/Main'))()
+      		-- Rerun with different settings to apply them
+
+local aimAssistBoxSize = Vector2.new(60, 30)
+local aimAssistBoxEnabled = true
+local aimAssistEnabled = true
+local visibilityLinesEnabled = true
+
+if _G.laaespGarbage then _G.laaespGarbage:clean() end
+
+local runservice = game:GetService("RunService")
+local players = game:GetService("Players")
+local camera = workspace.CurrentCamera
+local lp = players.LocalPlayer
+
+local screen = game:GetService("CoreGui").PlayerList
+
+local instanceTree = {}
+local inew
+do
+	function instanceTree.new(tree)
+		local self = {}
+
+		local function walk(description)
+			local name
+			local dictPart = {}
+			local arrayPart = {}
+			for i,v in pairs(description) do
+				if type(i) == "number" then
+					arrayPart[i] = v
+				elseif i == "name" then
+					name = v
+				elseif i ~= "tag" then
+					dictPart[i] = v
+				end
+			end
+
+			local inst = Instance.new(description.tag)
+			for i,v in pairs(dictPart) do
+				inst[i] = v
+			end
+			for i,v in ipairs(arrayPart) do
+				walk(v).Parent = inst
+			end
+
+			if name then
+				self[name] = inst
+			end
+
+			return inst
+		end
+		if not tree.tag then
+			tree.tag = "ScreenGui"
+		end
+		return setmetatable(self, {__index={
+			root = walk(tree);
+			Destroy = function(self)
+				self.root:Destroy()
+			end
+		}})
+	end
+
+	function inew(tag)
+		return function(t)
+			t.tag = tag
+			return t
+		end
+	end
+end
+
+local drawing = {}
+do
+	function drawing.new(kind, props)
+		local object = Drawing.new(kind)
+		for i,v in pairs(props) do
+			object[i] = v
+		end
+		return object
+	end
+end
+
+local garbage = {}
+do
+	local destructors = {}
+	local signals = {}
+	local insts = {}
+	local drawings = {}
+
+	function garbage:clean()
+		for i,func in ipairs(destructors) do
+			func()
+		end
+		for i,signal in ipairs(signals) do
+			signal:Disconnect()
+		end
+		for i,inst in ipairs(insts) do
+			inst:Destroy()
+		end
+		for i,drawing in ipairs(drawings) do
+			drawing:Remove()
+		end
+	end
+
+	function garbage:construct(kind, ...)
+		local object = kind.new(...)
+		if kind == Drawing or kind == drawing then
+			table.insert(drawings, object)
+		elseif kind == Instance or kind == instanceTree then
+			if ({ ... })[2] then
+				for i,inst in ipairs(insts) do
+					if object:IsDescendantOf(inst) then
+						return object
+					end
+				end
+			end
+			table.insert(insts, object)
+		else
+			error("Unsupported object created")
+		end
+		return object
+	end
+
+	function garbage:connect(signal, f)
+		local connection = signal:Connect(f)
+		table.insert(signals, connection)
+		return connection
+	end
+
+	function garbage:addDestructor(f)
+		table.insert(destructors, f)
+	end
+end
+
+local ui = {}
+do
+	local red = Color3.new(1, 0.25, 0.25)
+	ui.red = red
+	local yellow = Color3.new(1, 1, 0.25)
+	ui.yellow = yellow
+	local green = Color3.new(0.25, 1, 0.25)
+	ui.green = green
+	local cyan = Color3.new(0.25, 1, 1)
+	ui.cyan = cyan
+	local white = Color3.new(1, 1, 1)
+	ui.white = white
+	local black = Color3.new(0, 0, 0)
+	ui.black = black
+
+	local radius = 20
+	local aimAssistBounds = garbage:construct(drawing, "Square", {
+		Color = ui.green;
+		Size = aimAssistBoxSize;
+		Filled = false;
+		Thickness = 1;
+		Transparency = 1;
+		Visible = true;
+	})
+	ui.aimAssistBounds = aimAssistBounds
+
+	local lines = {}
+	local lineIdx = 1
+	function ui:addLine(to)
+		local line = lines[lineIdx]
+		if not line then
+			line = garbage:construct(drawing, "Line", {
+				Color = ui.yellow;
+				Thickness = 1;
+				Transparency = 0.5;
+				Visible = true;
+			})
+			table.insert(lines, line)
+		end
+
+		local size = screen.AbsoluteSize
+		line.Visible = true
+		line.From = Vector2.new(size.X / 2, size.Y - 36)
+		line.To = Vector2.new(to.X, to.Y)
+		lineIdx = lineIdx + 1
+	end
+
+	function ui:reclaimLines()
+		while lines[lineIdx] do
+			lines[lineIdx].Visible = false
+			lineIdx = lineIdx + 1
+		end
+		lineIdx = 1
+	end
+
+	function ui:inAimAssistBounds(pos)
+		if pos.X < aimAssistBounds.Position.X
+		or pos.X > aimAssistBounds.Position.X + aimAssistBounds.Size.X
+		or pos.Y < aimAssistBounds.Position.Y
+		or pos.Y > aimAssistBounds.Position.Y + aimAssistBounds.Size.Y then
+			return false
+		end
+		return true
+	end
+end
+
+local pf = {}
+do
+	local pfrequire = getrenv().shared.require
+	local pfmodules = getupvalue(pfrequire, 1)._cache
+	local PublicSettings = pfmodules.PublicSettings.module
+	local CharacterInterface = pfmodules.CharacterInterface.module
+	local WeaponControllerInterface = pfmodules.WeaponControllerInterface.module
+	local trajectory = pfmodules.physics.module.trajectory
+
+	local oppositeTeam = {
+		["Bright blue"] = "Bright orange";
+		["Bright orange"] = "Bright blue";
+	}
+
+	local raycastParams = RaycastParams.new()
+	raycastParams.FilterDescendantsInstances = { workspace.Map }
+	raycastParams.FilterType = Enum.RaycastFilterType.Whitelist
+	function pf:getClosestVisiblePlayersToViewportPoint(point)
+		local visiblePoints = {}
+		for i,player in pairs(workspace.Players[oppositeTeam[lp.TeamColor.Name]]:GetChildren()) do
+			for i,part in pairs(player:GetChildren()) do
+				if not part:IsA("BasePart") then
+					continue
+				end
+				local partpos = part.Position
+				local screenPos, onscreen = camera:WorldToViewportPoint(partpos)
+				local visible = onscreen
+				if visible then
+					local ray = camera:ViewportPointToRay(screenPos.x, screenPos.y, 0)
+					local origin, direction = ray.Origin, ray.Direction
+					local limit = 5
+					repeat
+						limit = limit - 1
+						local hit = workspace:Raycast(origin, direction * (origin - partpos).Magnitude, raycastParams)
+						if hit then
+							origin = hit.Position + direction * 0.25
+							if hit.Instance.Transparency == 0 then
+								visible = false
+								break
+							end
+						else
+							break
+						end
+					until limit == 0
+					if limit == 0 then
+						visible = false
+					end
+				end
+
+				if visible then
+					local dist = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(point.X, point.Y)).Magnitude
+					table.insert(visiblePoints, { dist = dist, part = part, scpos = screenPos })
+				end
+			end
+		end
+		table.sort(visiblePoints, function(a, b)
+			return a.dist < b.dist
+		end)
+		return visiblePoints
+	end
+
+	local aimAssistBounds = ui.aimAssistBounds
+	local allowedParts = { Torso = true; Head = true }
+	local bestResult
+	garbage:connect(runservice.RenderStepped, function()
+		local center = screen.AbsoluteSize / 2
+		local allVisible = pf:getClosestVisiblePlayersToViewportPoint(center)
+
+		local partLookup = {}
+		bestResult = nil
+		local bestDist = math.huge
+		for i,result in ipairs(allVisible) do
+			if not bestResult
+			and ui:inAimAssistBounds(result.scpos)
+			and allowedParts[result.part.Name]
+			and result.dist < bestDist then
+				bestResult = result
+			end
+			if result.part.Name == "Head" and visibilityLinesEnabled then
+			    ui:addLine(result.scpos)
+			end
+			partLookup[result.part] = true
+		end
+		ui:reclaimLines()
+
+		local isspawned =
+			not not CharacterInterface:getCharacterObject()
+			and aimAssistBoxEnabled
+			and aimAssistEnabled
+		aimAssistBounds.Position = center - aimAssistBounds.Size / 2
+		aimAssistBounds.Thickness = bestResult and 3 or 1
+		aimAssistBounds.Color = bestResult and ui.red or ui.cyan
+		aimAssistBounds.Transparency = bestResult and 1 or 0.5
+		aimAssistBounds.Visible = isspawned
+	end)
+
+	local gamemt = getrawmetatable(game)
+	local originalindex = gamemt.__index
+	setreadonly(gamemt, false)
+	gamemt.__index = newcclosure(function(self, k)
+		if not aimAssistEnabled then
+			return originalindex(self, k)
+		end
+
+		local WeaponController = WeaponControllerInterface:getController()
+		if not WeaponController then
+			return originalindex(self, k)
+		end
+		
+		local FirearmObject = WeaponController:getActiveWeapon()
+		local isGun = FirearmObject and FirearmObject:getWeaponType() == "Firearm"
+		if k == "CFrame" and not checkcaller() and bestResult and isGun then
+			local barrel = FirearmObject._barrelPart
+			local sight = FirearmObject:getActiveAimStat("sightpart")
+			if self == barrel or self == sight then
+				local aimbotPart = bestResult.part
+				local delta, time =
+					trajectory(
+						self.Position,
+						PublicSettings.bulletAcceleration,
+						aimbotPart.Position,
+						FirearmObject:getWeaponStat("bulletspeed"))
+				return
+					CFrame.new(
+						self.Position,
+						aimbotPart.Position + delta)
+			end
+		end
+		return originalindex(self, k)
+	end)
+	setreadonly(gamemt, true)
+
+	garbage:addDestructor(function()
+		setreadonly(gamemt, false)
+		gamemt.__index = originalindex
+		setreadonly(gamemt, true)
+	end)
+end
+
+_G.laaespGarbage = garbage
   	end    
 })
 local Visuals = Window:MakeTab({
