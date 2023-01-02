@@ -45,6 +45,12 @@ local Button = Aimbot:CreateButton({
 	loadstring(game:HttpGet('https://raw.githubusercontent.com/Riley0001/PFSilentRage/main/Main'))()
 	end,
 })
+local Button = Aimbot:CreateButton({
+	Name = "Aimbot - Very Legit (Probably The Best Option To Go For!)",
+	Callback = function()
+	loadstring(game:HttpGet('https://raw.githubusercontent.com/Riley0001/PFLEGITAIM/main/Main'))()
+	end,
+})
 
 local Visuals = Window:CreateTab("Visuals", 12007058778)
 
